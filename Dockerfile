@@ -5,7 +5,7 @@ COPY composer.json composer.lock* ./
 RUN composer install --no-dev --optimize-autoloader --prefer-dist --no-scripts --no-interaction --ignore-platform-reqs
 
 # Stage 2: Final image - PHP 8.3 FPM + Nginx + Supervisor
-FROM php:8.3-fpm-alpine
+FROM php:8.4-fpm-alpine
 
 # Install packages + GD deps + netcat for entrypoint DB wait
 RUN apk update && apk add --no-cache \
@@ -19,12 +19,10 @@ RUN apk update && apk add --no-cache \
     freetype-dev \
     libjpeg-turbo-dev \
     libpng-dev \
-    postgresql-dev \
     netcat-openbsd && \
   docker-php-ext-configure gd --with-freetype --with-jpeg && \
   docker-php-ext-install -j$(nproc) \
     pdo_mysql \
-    pdo_pgsql \
     zip \
     pcntl \
     bcmath \
@@ -51,10 +49,8 @@ RUN mkdir -p /var/www/html/bootstrap/cache \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
 # Laravel cache optimizations (now safe after COPY and mkdir)
-# Build-time config cache is skipped because .env is dockerignored, so env
-# values (DB, SMS, etc.) are only available at runtime. Caching happens in
-# entrypoint.sh after env is loaded instead.
-RUN php artisan route:cache \
+RUN php artisan config:cache \
+    && php artisan route:cache \
     && php artisan view:cache
 
 # Copy entrypoint script and make it executable
