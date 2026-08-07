@@ -25,7 +25,7 @@ done
 echo "PostgreSQL is up!"
 
 echo "Running migrations and seeders..."
-php artisan migrate:fresh --force
+php artisan migrate --force
 
 # Cache clear & optimize
 echo "Optimizing Laravel..."

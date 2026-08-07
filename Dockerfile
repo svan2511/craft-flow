@@ -1,64 +1,81 @@
-# Stage 1: Composer (ignore platform reqs for your lock file issue)
+# =========================
+# Stage 1: Composer
+# =========================
 FROM composer:2 AS composer
-WORKDIR /app
-COPY composer.json composer.lock* ./
-RUN composer install --no-dev --optimize-autoloader --prefer-dist --no-scripts --no-interaction --ignore-platform-reqs
 
-# Stage 2: Final image - PHP 8.3 FPM + Nginx + Supervisor
+WORKDIR /app
+
+COPY composer.json composer.lock* ./
+
+RUN composer install \
+    --no-dev \
+    --optimize-autoloader \
+    --prefer-dist \
+    --no-scripts \
+    --no-interaction \
+    --ignore-platform-reqs
+
+# =========================
+# Stage 2: PHP + Nginx
+# =========================
 FROM php:8.4-fpm-alpine
 
-# Install packages + GD deps + netcat for entrypoint DB wait
-RUN apk update && apk add --no-cache \
+# Install system packages
+RUN apk add --no-cache \
     nginx \
     supervisor \
-    libzip-dev \
-    zip \
-    unzip \
     git \
     curl \
+    zip \
+    unzip \
+    netcat-openbsd \
+    libzip-dev \
+    postgresql-dev \
     freetype-dev \
     libjpeg-turbo-dev \
     libpng-dev \
-    netcat-openbsd && \
-  docker-php-ext-configure gd --with-freetype --with-jpeg && \
-  docker-php-ext-install -j$(nproc) \
-    pdo_mysql \
-    pdo_pgsql \
-    zip \
-    pcntl \
-    bcmath \
-    gd \
-    exif && \
-  apk add --no-cache --virtual .build-deps $PHPIZE_DEPS && \
-  pecl install redis && \
-  docker-php-ext-enable redis && \
-  apk del .build-deps
+    $PHPIZE_DEPS
 
-# Copy configs (same)
+# Configure & install PHP extensions
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
+    docker-php-ext-install -j$(nproc) \
+        pdo_mysql \
+        pdo_pgsql \
+        zip \
+        pcntl \
+        bcmath \
+        gd \
+        exif
+
+# Install Redis extension
+RUN pecl install redis && \
+    docker-php-ext-enable redis
+
+# Remove build dependencies
+RUN apk del $PHPIZE_DEPS
+
+# Copy configs
 COPY nginx.conf /etc/nginx/http.d/default.conf
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# App setup
+# Application
 WORKDIR /var/www/html
-COPY . /var/www/html
-COPY --from=composer /app/vendor /var/www/html/vendor
 
-# Permissions fix: Create missing directories first, then chown & chmod
-RUN mkdir -p /var/www/html/bootstrap/cache \
-    && mkdir -p /var/www/html/storage/framework/{cache,sessions,views} \
-    && chown -R www-data:www-data /var/www/html \
-    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+COPY . .
+COPY --from=composer /app/vendor ./vendor
 
-# Laravel cache optimizations (now safe after COPY and mkdir)
-RUN php artisan config:cache \
-    && php artisan route:cache \
-    && php artisan view:cache
+# Storage permissions
+RUN mkdir -p bootstrap/cache && \
+    mkdir -p storage/framework/cache && \
+    mkdir -p storage/framework/sessions && \
+    mkdir -p storage/framework/views && \
+    chown -R www-data:www-data /var/www/html && \
+    chmod -R 775 storage bootstrap/cache
 
-# Copy entrypoint script and make it executable
+# Copy entrypoint
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Use entrypoint to run migrations/passport at startup, then start supervisor
 ENTRYPOINT ["/entrypoint.sh"]
 
 EXPOSE 80
