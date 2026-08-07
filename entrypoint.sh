@@ -16,8 +16,10 @@ php artisan optimize:clear
 
 # Wait for PostgreSQL
 echo "Waiting for PostgreSQL connection..."
+DB_HOST="${DB_HOST:-127.0.0.1}"
+DB_PORT="${DB_PORT:-5432}"
 
-until nc -z $DB_HOST $DB_PORT; do
+until nc -z "$DB_HOST" "$DB_PORT"; do
   echo "PostgreSQL is unavailable - sleeping"
   sleep 2
 done
@@ -25,8 +27,9 @@ done
 echo "PostgreSQL is up!"
 
 # Run Migrations
+# NOTE: migrate (NOT migrate:fresh) so restarts never wipe business data.
 echo "Running database migrations..."
-php artisan migrate:fresh --force
+php artisan migrate --force --no-interaction
 
 
 # Final Optimizations (After keys are set)

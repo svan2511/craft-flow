@@ -51,8 +51,10 @@ RUN mkdir -p /var/www/html/bootstrap/cache \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
 # Laravel cache optimizations (now safe after COPY and mkdir)
-RUN php artisan config:cache \
-    && php artisan route:cache \
+# Build-time config cache is skipped because .env is dockerignored, so env
+# values (DB, SMS, etc.) are only available at runtime. Caching happens in
+# entrypoint.sh after env is loaded instead.
+RUN php artisan route:cache \
     && php artisan view:cache
 
 # Copy entrypoint script and make it executable
