@@ -190,6 +190,77 @@ class KarigarFinanceApiTest extends TestCase
             ->assertJsonPath('data.order.balance_due', 13000.00);
     }
 
+    public function test_payment_cannot_exceed_remaining_balance(): void
+    {
+        [$workshop, $token] = $this->makeContext();
+
+        $order = Order::create([
+            'workshop_id' => $workshop->id,
+            'order_no' => 'ORD-104',
+            'customer_id' => Customer::create(['workshop_id' => $workshop->id, 'name' => 'O'])->id,
+            'item_name' => 'Sofa',
+            'total_amount' => 20000,
+            'advance_paid' => 3000,
+        ]);
+
+        $this->withToken($token)
+            ->postJson('/api/v1/payments/receive', [
+                'order_id' => $order->id,
+                'amount' => 20000,
+                'mode' => 'upi',
+                'type' => 'order_balance',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('amount');
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $order->id,
+            'advance_paid' => 3000.00,
+        ]);
+    }
+
+    public function test_advance_cannot_be_recorded_twice(): void
+    {
+        [$workshop, $token] = $this->makeContext();
+
+        $order = Order::create([
+            'workshop_id' => $workshop->id,
+            'order_no' => 'ORD-105',
+            'customer_id' => Customer::create(['workshop_id' => $workshop->id, 'name' => 'A'])->id,
+            'item_name' => 'Bed',
+            'total_amount' => 20000,
+            'advance_paid' => 3000,
+        ]);
+
+        Payment::create([
+            'workshop_id' => $workshop->id,
+            'order_id' => $order->id,
+            'type' => 'order_advance',
+            'amount' => 3000,
+            'paid_at' => now()->toDateString(),
+        ]);
+
+        $this->withToken($token)
+            ->postJson('/api/v1/payments/receive', [
+                'order_id' => $order->id,
+                'amount' => 5000,
+                'mode' => 'cash',
+                'type' => 'order_advance',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('type');
+
+        // Balance is still accepted on the same order.
+        $this->withToken($token)
+            ->postJson('/api/v1/payments/receive', [
+                'order_id' => $order->id,
+                'amount' => 17000,
+                'mode' => 'cash',
+                'type' => 'order_balance',
+            ])
+            ->assertStatus(201);
+    }
+
     public function test_reports_summary_shape(): void
     {
         [$workshop, $token] = $this->makeContext();

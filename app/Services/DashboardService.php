@@ -68,6 +68,7 @@ class DashboardService
         // to be delivered / money collected, regardless of how far out the date is.
         $ready = Order::where('status', Order::STATUS_READY)
             ->with('customer')
+            ->withExists(['payments as has_advance' => fn ($q) => $q->where('type', Payment::TYPE_ORDER_ADVANCE)])
             ->orderByRaw('delivery_date IS NULL, delivery_date ASC')
             ->get();
 
@@ -77,11 +78,13 @@ class DashboardService
             ->where('delivery_date', '<=', now()->addDays(7)->toDateString())
             ->orderBy('delivery_date')
             ->with('customer')
+            ->withExists(['payments as has_advance' => fn ($q) => $q->where('type', Payment::TYPE_ORDER_ADVANCE)])
             ->get();
 
         $urgent = $ready->concat($upcoming)->take(8);
 
         $recent = Order::with('customer')
+            ->withExists(['payments as has_advance' => fn ($q) => $q->where('type', Payment::TYPE_ORDER_ADVANCE)])
             ->latest()
             ->limit(5)
             ->get();
@@ -125,6 +128,7 @@ class DashboardService
             'status' => $order->status,
             'total_amount' => (float) $order->total_amount,
             'balance_due' => $order->balanceDue(),
+            'has_advance' => (bool) $order->has_advance,
             'delivery_date' => $order->delivery_date?->format('Y-m-d'),
             'customer' => $order->relationLoaded('customer') && $order->customer
                 ? ['id' => $order->customer->id, 'name' => $order->customer->name]

@@ -26,7 +26,7 @@ class StoreOrderRequest extends FormRequest
             'material_cost' => ['nullable', 'numeric', 'min:0'],
             'customization_notes' => ['nullable', 'string'],
             'design_image' => ['nullable', 'string', 'max:5242880'],
-            'design_images' => ['nullable', 'array', 'max:10'],
+            'design_images' => ['nullable', 'array', 'max:3'],
             'design_images.*' => ['string', 'max:5242880'],            'send_whatsapp' => ['nullable', 'boolean'],
         ];
     }

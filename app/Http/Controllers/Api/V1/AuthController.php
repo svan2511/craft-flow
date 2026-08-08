@@ -68,6 +68,9 @@ class AuthController extends Controller
         try {
             return ApiResponse::success('Authenticated user.', [
                 'user' => new UserResource(auth()->user()),
+                'workshop' => auth()->user()->workshop
+                    ? new WorkshopResource(auth()->user()->workshop)
+                    : null,
             ]);
         } catch (Throwable $e) {
             return $this->apiError($e, 'AuthController@me');
