@@ -29,7 +29,7 @@ echo "PostgreSQL is up!"
 # Run database migrations FIRST
 echo "Running database migrations..."
 
-php artisan migrate:fresh --force
+php artisan migrate --force
 
 echo "Database migrations completed!"
 
